@@ -1,5 +1,5 @@
 """
-Script para entrenar la red neuronal que aproxima el módulo de números complejos.
+Script para entrenar la red neuronal del módulo complejo.
 """
 
 import torch
@@ -7,10 +7,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 
-from complex_modulus_nn import ComplexModulusNN, ComplexModulusTrainer, evaluate_model
-from config import Config
+from networks.complex_modulus import ComplexModulusModel, ComplexModulusTrainer, ComplexModulusConfig, evaluate_model
 
 
 def create_data_loaders(config):
@@ -24,7 +22,7 @@ def create_data_loaders(config):
         Tuple con (train_loader, val_loader, test_loader)
     """
     # Crear trainer temporal para generar datos
-    temp_model = ComplexModulusNN(
+    temp_model = ComplexModulusModel(
         input_size=config.INPUT_SIZE,
         hidden_sizes=config.HIDDEN_SIZES,
         output_size=config.OUTPUT_SIZE
@@ -77,7 +75,7 @@ def plot_training_history(trainer, save_path="training_history.png"):
     plt.plot(trainer.val_losses, label='Validation Loss', alpha=0.7)
     plt.xlabel('Época')
     plt.ylabel('Pérdida (MSE)')
-    plt.title('Historial de Entrenamiento')
+    plt.title('Historial de Entrenamiento - Módulo Complejo')
     plt.legend()
     plt.grid(True, alpha=0.3)
     
@@ -157,10 +155,10 @@ def main():
     print("=== Entrenamiento de Red Neuronal para Módulo Complejo ===")
     
     # Configuración
-    config = Config()
+    config = ComplexModulusConfig()
     
     # Crear modelo
-    model = ComplexModulusNN(
+    model = ComplexModulusModel(
         input_size=config.INPUT_SIZE,
         hidden_sizes=config.HIDDEN_SIZES,
         output_size=config.OUTPUT_SIZE
@@ -183,7 +181,7 @@ def main():
     history = trainer.train(train_loader, val_loader)
     
     # Guardar modelo
-    trainer.save_model(config.MODEL_PATH)
+    trainer.save_model()
     
     # Evaluar rendimiento
     print("\n=== Evaluando Rendimiento ===")

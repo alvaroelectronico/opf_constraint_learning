@@ -1,62 +1,30 @@
 """
-Red neuronal para aproximar el módulo de números complejos.
+Clase base para todos los trainers de redes neuronales del proyecto OPF.
 """
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
+import torch.nn as nn
 import numpy as np
-from typing import Tuple, Optional
 import os
+from typing import Tuple, Optional, Dict, Any
+from .base_model import BaseModel
+from .config import BaseConfig
 
 
-class ComplexModulusNN(nn.Module):
+class BaseTrainer:
     """
-    Red neuronal que aproxima el módulo de un número complejo.
-    
-    Entrada: [x_re, x_im] (partes real e imaginaria)
-    Salida: |x| = sqrt(x_re^2 + x_im^2)
+    Clase base para entrenar redes neuronales.
     """
     
-    def __init__(self, input_size: int = 2, hidden_sizes: list = [64, 32, 16], output_size: int = 1):
-        super(ComplexModulusNN, self).__init__()
-        
-        # Construir capas
-        layers = []
-        prev_size = input_size
-        
-        for hidden_size in hidden_sizes:
-            layers.extend([
-                nn.Linear(prev_size, hidden_size),
-                nn.ReLU(),
-                nn.Dropout(0.1)
-            ])
-            prev_size = hidden_size
-        
-        # Capa de salida
-        layers.append(nn.Linear(prev_size, output_size))
-        
-        self.network = nn.Sequential(*layers)
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __init__(self, model: BaseModel, config: BaseConfig):
         """
-        Forward pass de la red neuronal.
+        Inicializa el trainer base.
         
         Args:
-            x: Tensor de forma (batch_size, 2) con [x_re, x_im]
-            
-        Returns:
-            Tensor de forma (batch_size, 1) con el módulo aproximado
+            model: Modelo a entrenar
+            config: Configuración del entrenamiento
         """
-        return self.network(x)
-
-
-class ComplexModulusTrainer:
-    """
-    Clase para entrenar la red neuronal del módulo complejo.
-    """
-    
-    def __init__(self, model: ComplexModulusNN, config):
         self.model = model
         self.config = config
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -72,25 +40,12 @@ class ComplexModulusTrainer:
         
     def generate_data(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Genera datos de entrenamiento para el módulo complejo.
+        Genera datos de entrenamiento. Debe ser implementado por las subclases.
         
         Returns:
-            Tuple con (inputs, targets) donde:
-            - inputs: (num_samples, 2) con [x_re, x_im]
-            - targets: (num_samples, 1) con |x|
+            Tuple con (inputs, targets)
         """
-        # Generar números complejos aleatorios
-        x_re = np.random.uniform(self.config.MIN_VALUE, self.config.MAX_VALUE, self.config.NUM_SAMPLES)
-        x_im = np.random.uniform(self.config.MIN_VALUE, self.config.MAX_VALUE, self.config.NUM_SAMPLES)
-        
-        # Calcular el módulo exacto
-        modulus = np.sqrt(x_re**2 + x_im**2)
-        
-        # Convertir a tensores
-        inputs = torch.FloatTensor(np.column_stack([x_re, x_im]))
-        targets = torch.FloatTensor(modulus).unsqueeze(1)
-        
-        return inputs, targets
+        raise NotImplementedError("Subclases deben implementar generate_data()")
     
     def train_epoch(self, train_loader) -> float:
         """
@@ -151,7 +106,7 @@ class ComplexModulusTrainer:
         
         return total_loss / num_batches
     
-    def train(self, train_loader, val_loader) -> dict:
+    def train(self, train_loader, val_loader) -> Dict[str, Any]:
         """
         Entrena la red neuronal completa.
         
@@ -184,23 +139,20 @@ class ComplexModulusTrainer:
             'val_losses': self.val_losses
         }
     
-    def save_model(self, path: str):
+    def save_model(self, path: Optional[str] = None):
         """
         Guarda el modelo entrenado con información completa de configuración.
         
         Args:
-            path: Ruta donde guardar el modelo
+            path: Ruta donde guardar el modelo (opcional)
         """
+        if path is None:
+            path = self.config.MODEL_PATH
+            
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
         # Información detallada de la arquitectura
-        model_info = {
-            'input_size': self.config.INPUT_SIZE,
-            'hidden_sizes': self.config.HIDDEN_SIZES,
-            'output_size': self.config.OUTPUT_SIZE,
-            'total_parameters': sum(p.numel() for p in self.model.parameters()),
-            'trainable_parameters': sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        }
+        model_info = self.model.get_model_info()
         
         # Información de entrenamiento
         training_info = {
@@ -213,14 +165,6 @@ class ComplexModulusTrainer:
             'final_val_loss': self.val_losses[-1] if self.val_losses else None,
             'best_val_loss': min(self.val_losses) if self.val_losses else None,
             'best_epoch': self.val_losses.index(min(self.val_losses)) if self.val_losses else None
-        }
-        
-        # Información de datos
-        data_info = {
-            'num_samples': self.config.NUM_SAMPLES,
-            'min_value': self.config.MIN_VALUE,
-            'max_value': self.config.MAX_VALUE,
-            'data_range': f"[{self.config.MIN_VALUE}, {self.config.MAX_VALUE}]"
         }
         
         # Información del dispositivo y optimizador
@@ -238,9 +182,8 @@ class ComplexModulusTrainer:
             'config': self.config,
             'model_info': model_info,
             'training_info': training_info,
-            'data_info': data_info,
             'device_info': device_info,
-            'save_timestamp': str(torch.datetime.now()) if hasattr(torch, 'datetime') else None
+            'network_name': self.config.network_name
         }, path)
         
         print(f"Modelo guardado en: {path}")
@@ -262,59 +205,19 @@ class ComplexModulusTrainer:
         self.train_losses = checkpoint.get('train_losses', [])
         self.val_losses = checkpoint.get('val_losses', [])
         print(f"Modelo cargado desde: {path}")
-
-
-def exact_modulus(x_re: float, x_im: float) -> float:
-    """
-    Calcula el módulo exacto de un número complejo.
     
-    Args:
-        x_re: Parte real
-        x_im: Parte imaginaria
-        
-    Returns:
-        Módulo del número complejo
-    """
-    return np.sqrt(x_re**2 + x_im**2)
-
-
-    def evaluate_model(self, model: ComplexModulusNN, x_re: float, x_im: float) -> Tuple[float, float]:
+    def evaluate_model(self, inputs: torch.Tensor) -> torch.Tensor:
         """
-        Evalúa el modelo en un punto específico.
+        Evalúa el modelo con los inputs dados.
         
         Args:
-            model: Modelo entrenado
-            x_re: Parte real
-            x_im: Parte imaginaria
+            inputs: Tensor de entrada
             
         Returns:
-            Tuple con (predicción, valor_exacto)
+            Tensor de salida
         """
-        model.eval()
+        self.model.eval()
         with torch.no_grad():
-            input_tensor = torch.FloatTensor([[x_re, x_im]])
-            prediction = model(input_tensor).item()
-        
-        exact_value = exact_modulus(x_re, x_im)
-        return prediction, exact_value
-
-
-def evaluate_model(model: ComplexModulusNN, x_re: float, x_im: float) -> Tuple[float, float]:
-    """
-    Evalúa el modelo en un punto específico.
-    
-    Args:
-        model: Modelo entrenado
-        x_re: Parte real
-        x_im: Parte imaginaria
-        
-    Returns:
-        Tuple con (predicción, valor_exacto)
-    """
-    model.eval()
-    with torch.no_grad():
-        input_tensor = torch.FloatTensor([[x_re, x_im]])
-        prediction = model(input_tensor).item()
-    
-    exact_value = exact_modulus(x_re, x_im)
-    return prediction, exact_value 
+            inputs = inputs.to(self.device)
+            outputs = self.model(inputs)
+        return outputs 

@@ -12,13 +12,31 @@ Por el momento, solo quiero crear una red neuronal que aproxime el módulo de un
 opf_constraint_learning/
 ├── README.md                 # Este archivo
 ├── requirements.txt          # Dependencias del proyecto
-├── config.py                # Configuración y hiperparámetros
-├── complex_modulus_nn.py    # Red neuronal y trainer
-├── train.py                 # Script de entrenamiento
-├── test.py                  # Script de pruebas y evaluación
-├── example.py               # Ejemplo de uso simple
-├── model_info.py            # Analizador de modelos guardados
-└── models/                  # Directorio para guardar modelos (se crea automáticamente)
+├── common/                   # Código común reutilizable
+│   ├── __init__.py
+│   ├── base_trainer.py       # Clase base para trainers
+│   ├── base_model.py         # Clase base para modelos
+│   ├── config.py             # Configuración base
+│   └── model_info.py         # Analizador de modelos
+├── networks/                 # Redes neuronales específicas
+│   ├── __init__.py
+│   ├── complex_modulus/      # Red para módulo complejo
+│   │   ├── __init__.py
+│   │   ├── model.py
+│   │   ├── trainer.py
+│   │   ├── config.py
+│   │   └── train.py
+│   └── power_flow/           # Red para flujo de potencia
+│       ├── __init__.py
+│       ├── model.py
+│       ├── trainer.py
+│       ├── config.py
+│       └── train.py
+├── models/                   # Modelos entrenados
+│   ├── complex_modulus/
+│   └── power_flow/
+└── scripts/                  # Scripts de utilidad
+    └── __init__.py
 ```
 
 ## Instalación
@@ -32,30 +50,41 @@ pip install -r requirements.txt
 
 ### Ejemplo Rápido
 ```bash
-python example.py
+python scripts/example_usage.py
 ```
 
 ### Entrenamiento
+
+#### Red de Módulo Complejo
 ```bash
-python train.py
+python networks/complex_modulus/train.py
 ```
 
-### Pruebas
+#### Red de Flujo de Potencia
 ```bash
-python test.py
+python networks/power_flow/train.py
 ```
 
 ### Información del Modelo
 ```bash
-python model_info.py
+python common/model_info.py
 ```
 
-## Arquitectura de la Red Neuronal
+## Redes Neuronales Implementadas
 
-La red neuronal implementada tiene la siguiente estructura:
+### 1. Red de Módulo Complejo
 - **Entrada**: 2 neuronas (x_re, x_im)
 - **Capas ocultas**: [64, 32, 16] neuronas con ReLU y Dropout
 - **Salida**: 1 neurona (|x|)
+- **Función**: Aproxima |x| = sqrt(x_re² + x_im²)
+
+### 2. Red de Flujo de Potencia
+- **Entrada**: 6 neuronas (u_Ri, u_Ii, u_Rj, u_Ij, G_ij, B_ij)
+- **Capas ocultas**: [128, 64, 32] neuronas con ReLU y Dropout
+- **Salida**: 2 neuronas (p_ij, q_ij)
+- **Función**: Aproxima las ecuaciones de flujo de potencia:
+  - p_ij = G_ij × (u_Ri² + u_Ii² - u_Ri×u_Rj - u_Ii×u_Ij) + B_ij × (u_Ri×u_Ij - u_Ii×u_Rj)
+  - q_ij = -B_ij × (u_Ri² + u_Ii² - u_Ri×u_Rj - u_Ii×u_Ij) + G_ij × (u_Ri×u_Ij - u_Ii×u_Rj)
 
 ## Características
 
